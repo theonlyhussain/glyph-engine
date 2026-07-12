@@ -60,6 +60,17 @@ export class GlyphEngine {
     return this.source.element;
   }
 
+  // Playback & Audio APIs
+  public get duration(): number { return this.source.duration; }
+  public get currentTime(): number { return this.source.currentTime; }
+  public set currentTime(time: number) { this.source.currentTime = time; }
+  public get volume(): number { return this.source.volume; }
+  public set volume(v: number) { this.source.volume = v; }
+  public get muted(): boolean { return this.source.muted; }
+  public set muted(m: boolean) { this.source.muted = m; }
+  public get playbackRate(): number { return this.source.playbackRate; }
+  public set playbackRate(r: number) { this.source.playbackRate = r; }
+
   public updateSettings(settings: Partial<RenderSettings>): void {
     this.renderer.updateSettings(settings);
   }

@@ -19,7 +19,15 @@ export class WebGPURenderer implements Renderer {
 
   private source: VideoSource | null = null;
   private atlas: GlyphAtlas | null = null;
-  private settings: RenderSettings = { density: 8, colorMode: 0, renderMode: 0 };
+  private settings: RenderSettings = { 
+    density: 8, 
+    colorMode: 0, 
+    renderMode: 0,
+    brightness: 1.0,
+    contrast: 1.0,
+    saturation: 1.0,
+    quality: 1
+  };
   
   private gridSize = { w: 0, h: 0 };
   private instanceCount = 0;
@@ -61,9 +69,13 @@ export class WebGPURenderer implements Renderer {
     this.sampler = this.device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
     this.atlasSampler = this.device.createSampler({ magFilter: 'linear', minFilter: 'linear' });
 
-    // Uniforms: 48 bytes (12 floats)
+    // Uniforms: 64 bytes (16 floats) to hold new adjustments
+    // vec2 sourceSize, vec2 gridSize (16)
+    // float cellSize, float time, float atlasCols, float atlasRows (16)
+    // u32 colorMode, u32 renderMode, u32 quality, float brightness (16)
+    // float contrast, float saturation, vec2 padding (16)
     this.uniformsBuffer = this.device.createBuffer({
-      size: 48,
+      size: 64,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
   }
@@ -117,15 +129,45 @@ export class WebGPURenderer implements Renderer {
         });
       }
 
-      // 48 bytes (12 x 4)
+      // 64 bytes (16 x 4)
       this.device.queue.writeBuffer(this.uniformsBuffer!, 0, new Float32Array([
         this.source.width, this.source.height,
         gridW, gridH,
         this.settings.density,
         performance.now() / 1000,
         this.atlas!.cols, this.atlas!.rows,
-        this.settings.colorMode, this.settings.renderMode, 0, 0 // colorMode + renderMode + 2 floats padding
+        
+        // Use Float32Array but the shader reads them as u32/f32 correctly based on layout
+        // JavaScript bitwise trick to cast float bits to uint bits is not needed 
+        // if we just pass small integers that fit exactly in f32 without losing precision,
+        // WebGPU will read the f32 bits. WAIT: `u32` in WGSL expects integer bits.
+        // We must pass an ArrayBuffer and use a DataView to write properly, or use mixed arrays.
       ]));
+      
+      const uniformData = new ArrayBuffer(64);
+      const view = new DataView(uniformData);
+      
+      view.setFloat32(0, this.source.width, true);
+      view.setFloat32(4, this.source.height, true);
+      view.setFloat32(8, gridW, true);
+      view.setFloat32(12, gridH, true);
+      
+      view.setFloat32(16, this.settings.density, true);
+      view.setFloat32(20, performance.now() / 1000, true);
+      view.setFloat32(24, this.atlas!.cols, true);
+      view.setFloat32(28, this.atlas!.rows, true);
+      
+      view.setUint32(32, this.settings.colorMode, true);
+      view.setUint32(36, this.settings.renderMode, true);
+      view.setUint32(40, this.settings.quality, true);
+      view.setFloat32(44, this.settings.brightness, true);
+      
+      view.setFloat32(48, this.settings.contrast, true);
+      view.setFloat32(52, this.settings.saturation, true);
+      view.setFloat32(56, 0, true); // padding
+      view.setFloat32(60, 0, true); // padding
+
+      this.device.queue.writeBuffer(this.uniformsBuffer!, 0, uniformData);
 
       let externalTexture: GPUExternalTexture;
       try {

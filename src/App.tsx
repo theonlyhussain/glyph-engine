@@ -1,7 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { GlyphEngine } from './engine/GlyphEngine';
 import { WelcomeScreen } from './ui/WelcomeScreen';
-import { FloatingControls } from './ui/FloatingControls';
+import { MediaPlayerUI } from './ui/MediaPlayerUI';
 import { DeveloperMode } from './ui/DeveloperMode';
 
 export default function App() {
@@ -72,7 +72,7 @@ export default function App() {
       )}
       
       {hasVideo && engine && (
-        <FloatingControls engine={engine} />
+        <MediaPlayerUI engine={engine} />
       )}
       <DeveloperMode />
     </div>

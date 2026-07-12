@@ -7,7 +7,12 @@ struct Uniforms {
   atlasRows: f32,
   colorMode: u32,
   renderMode: u32,
-  padding2: vec2<f32>,
+  quality: u32,
+  brightness: f32,
+  contrast: f32,
+  saturation: f32,
+  padding1: f32,
+  padding2: f32,
 }
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
@@ -64,6 +69,18 @@ fn vs_main(
   return out;
 }
 
+fn applyColorCorrection(color: vec3<f32>) -> vec3<f32> {
+  var c = color;
+  // Brightness
+  c = c * uniforms.brightness;
+  // Contrast
+  c = (c - 0.5) * uniforms.contrast + 0.5;
+  // Saturation
+  let lum = dot(c, vec3<f32>(0.2126, 0.7152, 0.0722));
+  c = mix(vec3<f32>(lum), c, uniforms.saturation);
+  return clamp(c, vec3<f32>(0.0), vec3<f32>(1.0));
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let glyph = textureSample(atlasTexture, atlasSampler, in.uv);
@@ -72,25 +89,20 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   var finalColor = in.color;
   
   // Color Modes
-  // 0: Original
-  // 1: White
-  // 2: Matrix (Green)
-  // 3: Amber
-  // 4: Terminal Green
-  // 5: Monochrome
-  
-  if (uniforms.colorMode == 1u) {
+  if (uniforms.colorMode == 1u) { // White
     finalColor = vec3<f32>(in.lum, in.lum, in.lum);
-  } else if (uniforms.colorMode == 2u) {
+  } else if (uniforms.colorMode == 2u) { // Matrix
     finalColor = vec3<f32>(0.0, in.lum, 0.2 * in.lum);
-  } else if (uniforms.colorMode == 3u) {
+  } else if (uniforms.colorMode == 3u) { // Amber
     finalColor = vec3<f32>(1.0 * in.lum, 0.7 * in.lum, 0.0);
-  } else if (uniforms.colorMode == 4u) {
+  } else if (uniforms.colorMode == 4u) { // Terminal Green
     finalColor = vec3<f32>(0.2 * in.lum, 1.0 * in.lum, 0.2 * in.lum);
-  } else if (uniforms.colorMode == 5u) {
+  } else if (uniforms.colorMode == 5u) { // Monochrome
     let m = dot(in.color, vec3<f32>(0.2126, 0.7152, 0.0722));
     finalColor = vec3<f32>(m, m, m);
   }
+  
+  finalColor = applyColorCorrection(finalColor);
   
   finalColor = finalColor * alpha;
   return vec4<f32>(finalColor, alpha);

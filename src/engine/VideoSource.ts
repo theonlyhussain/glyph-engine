@@ -6,7 +6,7 @@ export class VideoSource {
   constructor() {
     this.element = document.createElement('video');
     this.element.crossOrigin = 'anonymous';
-    this.element.muted = true;
+    this.element.muted = false; // Un-mute for v0.2
     this.element.loop = true;
     this.element.playsInline = true;
     // Essential for texture_external: video must be playing and ready
@@ -58,6 +58,19 @@ export class VideoSource {
   public get height() { return this.element.videoHeight; }
   public get isReady() { return this.element.readyState >= 3; } // HAVE_FUTURE_DATA
   public get isPlaying() { return !this.element.paused; }
+  
+  public get duration() { return this.element.duration; }
+  public get currentTime() { return this.element.currentTime; }
+  public set currentTime(time: number) { this.element.currentTime = time; }
+  
+  public get volume() { return this.element.volume; }
+  public set volume(v: number) { this.element.volume = v; }
+  
+  public get muted() { return this.element.muted; }
+  public set muted(m: boolean) { this.element.muted = m; }
+  
+  public get playbackRate() { return this.element.playbackRate; }
+  public set playbackRate(rate: number) { this.element.playbackRate = rate; }
 
   public destroy() {
     this.pause();
