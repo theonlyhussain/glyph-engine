@@ -1,6 +1,6 @@
 <div align="center">
   <h1>GlyphEngine</h1>
-  <p><b>High-Performance WebGPU Typography Renderer</b></p>
+  <p><b>Just simple videos into pixle of words</b></p>
   <p>
     <img src="https://img.shields.io/badge/WebGPU-Ready-blue?style=for-the-badge&logo=webgl" />
     <img src="https://img.shields.io/badge/TypeScript-Strict-blue?style=for-the-badge&logo=typescript" />
