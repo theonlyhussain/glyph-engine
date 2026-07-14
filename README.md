@@ -1,6 +1,6 @@
 <div align="center">
   <h1>GlyphEngine</h1>
-  <p><b>High-Performance WebGPU Typography Renderer</b></p>
+  <p><b>Just simple videos into pixle of words</b></p>
   <p>
     <img src="https://img.shields.io/badge/WebGPU-Ready-blue?style=for-the-badge&logo=webgl" />
     <img src="https://img.shields.io/badge/TypeScript-Strict-blue?style=for-the-badge&logo=typescript" />
@@ -11,16 +11,6 @@
 <br />
 
 GlyphEngine is a state-of-the-art, GPU-accelerated rendering engine that transforms HTML5 video into dynamic, high-density typographic art in real-time. Built from the ground up for the browser, it leverages WebGPU compute and render pipelines to achieve unparalleled performance without freezing the main thread.
-
-## ✨ Features
-
-- **Blazing Fast WebGPU Compute**: Frame luminance analysis is performed via highly parallelized compute shaders.
-- **Instanced Glyph Rendering**: Renders tens of thousands of glyphs per frame at 60 FPS using instanced quads and atlas sampling.
-- **Multiple Render Modes**: Includes standard Brightness ASCII, Perceptual Edge Detection, and Unicode Block rendering.
-- **Color Themes**: Built-in support for Matrix, Amber, Terminal Green, and Monochrome modes via zero-cost uniform updates.
-- **Persistent Pipeline**: Changing density, size, or color modes does *not* trigger expensive shader recompilations.
-- **Clean Architecture**: The core engine (`src/engine/`) is completely decoupled from the React UI (`src/ui/`).
-- **Robust Resource Management**: Strict handling of WebGPU textures and object URLs to prevent memory leaks during extended use.
 
 ## 🚀 Quick Start
 
