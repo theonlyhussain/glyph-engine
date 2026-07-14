@@ -17,6 +17,10 @@ dist-ssr
 !.vscode/extensions.json
 .idea
 .DS_Store
+
+# Debug Media
+/*.png
+/*.mp4
 *.suo
 *.ntvs*
 *.njsproj

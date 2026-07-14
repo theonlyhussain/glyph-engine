@@ -27,8 +27,8 @@ GlyphEngine is a state-of-the-art, GPU-accelerated rendering engine that transfo
 ### Installation
 
 ```bash
-git clone https://github.com/yourusername/GlyphEngine.git
-cd GlyphEngine
+git clone https://github.com/theonlyhussain/glyph-engine.git
+cd glyph-engine
 npm install
 npm run dev
 ```

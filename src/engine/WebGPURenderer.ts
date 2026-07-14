@@ -30,7 +30,7 @@ export class WebGPURenderer implements Renderer {
   };
   
   private gridSize = { w: 0, h: 0 };
-  private instanceCount = 0;
+  public instanceCount = 0;
 
   public async init(canvas: HTMLCanvasElement): Promise<void> {
     if (!navigator.gpu) throw new Error('WebGPU not supported');

@@ -74,7 +74,7 @@ export default function App() {
       {hasVideo && engine && (
         <MediaPlayerUI engine={engine} />
       )}
-      <DeveloperMode />
+      <DeveloperMode engine={engine} />
     </div>
   );
 }

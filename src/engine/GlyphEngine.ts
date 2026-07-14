@@ -60,6 +60,14 @@ export class GlyphEngine {
     return this.source.element;
   }
 
+  public get instanceCount(): number {
+    // If renderer exposes it, return it.
+    // The renderer uses instanceCount = gridW * gridH. We need to expose it from WebGPURenderer
+    // For now, I will just calculate it based on current density if renderer doesn't expose it.
+    // Actually, I'll add the getter to Renderer interface and WebGPURenderer.
+    return (this.renderer as any).instanceCount || 0;
+  }
+
   // Playback & Audio APIs
   public get duration(): number { return this.source.duration; }
   public get currentTime(): number { return this.source.currentTime; }

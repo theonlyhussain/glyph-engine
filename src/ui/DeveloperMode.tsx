@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
+import { GlyphEngine } from '../engine/GlyphEngine';
 
-export function DeveloperMode() {
+export function DeveloperMode({ engine }: { engine: GlyphEngine | null }) {
   const [isVisible, setIsVisible] = useState(false);
   const [fps, setFps] = useState(0);
 
@@ -49,6 +50,7 @@ export function DeveloperMode() {
       
       <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 8 }}>
         <div>Render FPS:</div><div style={{ color: '#60a5fa', fontWeight: 'bold' }}>{fps}</div>
+        <div>Glyph Count:</div><div style={{ color: '#4ade80' }}>{engine?.instanceCount.toLocaleString() || 0}</div>
         <div>VRAM Est:</div><div>~16 MB</div>
         <div>Draw Calls:</div><div>1</div>
         <div>Compute Passes:</div><div>1</div>
