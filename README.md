@@ -8,9 +8,13 @@
   </p>
 </div>
 
+<div align="center">
+  <img src="docs/screenshots/rc1-render.png" alt="GlyphEngine Render Example" width="800" />
+</div>
+
 <br />
 
-GlyphEngine is a state-of-the-art, GPU-accelerated rendering engine that transforms HTML5 video into dynamic, high-density typographic art in real-time. Built from the ground up for the browser, it leverages WebGPU compute and render pipelines to achieve unparalleled performance without freezing the main thread.
+GlyphEngine is a WebGPU-based rendering engine that converts uploaded video into real-time typography animations. Instead of standard pixels, it reconstructs the video using text characters (ASCII, Unicode blocks, etc.). It uses a two-pass architecture: a compute shader analyzes the video's luminance, and a render pass draws the output using instanced quads and a glyph texture atlas.
 
 ## 🚀 Quick Start
 
