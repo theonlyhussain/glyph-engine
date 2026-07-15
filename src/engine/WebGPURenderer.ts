@@ -20,7 +20,7 @@ export class WebGPURenderer implements Renderer {
   private source: VideoSource | null = null;
   private atlas: GlyphAtlas | null = null;
   private settings: RenderSettings = { 
-    density: 8, 
+    density: 4, 
     colorMode: 0, 
     renderMode: 0,
     brightness: 1.0,

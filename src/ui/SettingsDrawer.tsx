@@ -9,7 +9,8 @@ interface SettingsDrawerProps {
 }
 
 export function SettingsDrawer({ engine, isOpen, onClose }: SettingsDrawerProps) {
-  const [density, setDensity] = useState(8);
+  const [density, setDensity] = useState(4); // Default to True Color optimized density
+  const [userSetDensity, setUserSetDensity] = useState(false);
   const [renderMode, setRenderMode] = useState(0);
   const [colorMode, setColorMode] = useState(0);
   const [quality, setQuality] = useState(1);
@@ -33,6 +34,7 @@ export function SettingsDrawer({ engine, isOpen, onClose }: SettingsDrawerProps)
         if (s.brightness !== undefined) setBrightness(s.brightness);
         if (s.contrast !== undefined) setContrast(s.contrast);
         if (s.saturation !== undefined) setSaturation(s.saturation);
+        if (s.userSetDensity !== undefined) setUserSetDensity(s.userSetDensity);
         
         engine.updateSettings(s);
       }
@@ -44,7 +46,7 @@ export function SettingsDrawer({ engine, isOpen, onClose }: SettingsDrawerProps)
     
     // Save to localStorage
     try {
-      const current = { density, renderMode, colorMode, quality, brightness, contrast, saturation, ...updates };
+      const current = { density, renderMode, colorMode, quality, brightness, contrast, saturation, userSetDensity, ...updates };
       localStorage.setItem('glyphEngineSettings', JSON.stringify(current));
     } catch(err) {}
   };
@@ -99,9 +101,18 @@ export function SettingsDrawer({ engine, isOpen, onClose }: SettingsDrawerProps)
           <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Color Mode</label>
           <select value={colorMode} onChange={e => {
             const v = parseInt(e.target.value, 10);
-            setColorMode(v); updateEngine({ colorMode: v });
+            setColorMode(v); 
+            
+            let newDensity = density;
+            if (!userSetDensity) {
+              if (v === 0) newDensity = 4; // True Color (denser)
+              else newDensity = 6; // Stylized modes (clearer text)
+              setDensity(newDensity);
+            }
+            
+            updateEngine({ colorMode: v, density: newDensity });
           }} style={selectStyle}>
-            <option value={0}>Original</option>
+            <option value={0}>True Color</option>
             <option value={5}>Monochrome</option>
             <option value={2}>Matrix</option>
             <option value={4}>Terminal Green</option>
@@ -129,9 +140,11 @@ export function SettingsDrawer({ engine, isOpen, onClose }: SettingsDrawerProps)
             <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Glyph Density</label>
             <span style={{ fontSize: 12, color: '#60a5fa' }}>{density}px</span>
           </div>
-          <input type="range" min="4" max="32" step="1" value={density} onChange={e => {
+          <input type="range" min="3" max="32" step="1" value={density} onChange={e => {
             const v = parseInt(e.target.value, 10);
-            setDensity(v); updateEngine({ density: v });
+            setDensity(v); 
+            setUserSetDensity(true);
+            updateEngine({ density: v, userSetDensity: true });
           }} style={{ width: '100%' }} />
         </div>
 

@@ -26,7 +26,9 @@ struct Uniforms {
 @group(0) @binding(3) var<uniform> uniforms: Uniforms;
 
 fn sampleColor(uv: vec2<f32>) -> vec3<f32> {
-  return textureSampleBaseClampToEdge(videoTexture, videoSampler, uv).rgb;
+  let c = textureSampleBaseClampToEdge(videoTexture, videoSampler, uv).rgb;
+  // Convert sRGB to Linear for physically accurate averaging
+  return pow(c, vec3<f32>(2.2));
 }
 
 fn getLuminance(color: vec3<f32>) -> f32 {
