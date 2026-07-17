@@ -3,6 +3,8 @@ import { WebGPURenderer } from './WebGPURenderer';
 import { WebGL2Renderer } from './WebGL2Renderer';
 import { VideoSource } from './VideoSource';
 import { GlyphAtlas } from './GlyphAtlas';
+import { GefFormat } from './GefFormat';
+import type { GefManifest } from './GefFormat';
 
 export class GlyphEngine {
   private canvas: HTMLCanvasElement;
@@ -11,6 +13,12 @@ export class GlyphEngine {
   private atlas: GlyphAtlas;
   private rafId: number = 0;
   private _isRendering = false;
+  
+  // GEF Playback State
+  private gefFrames: Uint8Array[] = [];
+  private gefManifest: GefManifest | null = null;
+  private gefCurrentFrame = 0;
+  private gefStartTime = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -30,8 +38,15 @@ export class GlyphEngine {
     await this.renderer.setAtlas(this.atlas);
     this.renderer.setSource(this.source);
   }
+  
+  public getRenderer(): Renderer {
+    return this.renderer;
+  }
 
   public async loadVideo(file: File): Promise<void> {
+    (this.renderer as any).isGefMode = false;
+    this.gefFrames = [];
+    this.gefManifest = null;
     await this.source.load(file);
     if (!this._isRendering) {
       this.play();
@@ -39,20 +54,27 @@ export class GlyphEngine {
   }
 
   public play(): void {
-    this.source.play();
-    if (!this._isRendering) {
+    if (this.gefManifest) {
+      this.gefStartTime = performance.now() - (this.gefCurrentFrame / this.gefManifest.fps) * 1000;
       this._isRendering = true;
       this.renderLoop();
+    } else {
+      this.source.play();
+      if (!this._isRendering) {
+        this._isRendering = true;
+        this.renderLoop();
+      }
     }
   }
 
   public pause(): void {
-    this.source.pause();
+    if (!this.gefManifest) this.source.pause();
     this._isRendering = false;
     cancelAnimationFrame(this.rafId);
   }
   
   public get isPlaying(): boolean {
+    if (this.gefManifest) return this._isRendering;
     return this.source.isPlaying;
   }
   
@@ -88,9 +110,94 @@ export class GlyphEngine {
     await this.renderer.setAtlas(atlas);
   }
 
+  public async exportGef(): Promise<Blob> {
+    if (!(this.renderer instanceof WebGPURenderer)) throw new Error('Export only supported in WebGPU');
+    if (!this.source.isReady) throw new Error('No video loaded');
+
+    this.pause();
+    
+    const seekVideo = (time: number): Promise<void> => {
+      return new Promise((resolve) => {
+        if (Math.abs(this.source.element.currentTime - time) < 0.001) {
+          resolve();
+          return;
+        }
+        const onSeeked = () => {
+          this.source.element.removeEventListener('seeked', onSeeked);
+          resolve();
+        };
+        this.source.element.addEventListener('seeked', onSeeked);
+        this.source.currentTime = time;
+      });
+    };
+    
+    const fps = 30; // Standard assumption
+    const totalFrames = Math.floor(this.source.duration * fps);
+    const frames: Uint8Array[] = [];
+    
+    for (let i = 0; i < totalFrames; i++) {
+      await seekVideo(i / fps);
+      const rawData = await this.renderer.extractCurrentFrame();
+      frames.push(GefFormat.packFrame(rawData));
+    }
+    
+    const manifest: GefManifest = {
+      formatVersion: 1,
+      engineVersion: "0.1.0",
+      fps,
+      resolution: { width: this.source.width, height: this.source.height },
+      frameCount: totalFrames,
+      settings: this.renderer.getSettings(),
+      createdAt: new Date().toISOString()
+    };
+    
+    const blob = await GefFormat.createGef(manifest, frames, null);
+    
+    // Resume playback after export
+    this.play();
+    
+    return blob;
+  }
+
+  public async loadGef(file: File): Promise<void> {
+    this.pause();
+    (this.renderer as any).isGefMode = true;
+    
+    const parsed = await GefFormat.parseGef(file);
+    this.gefManifest = parsed.manifest;
+    this.gefFrames = parsed.frames;
+    this.gefCurrentFrame = 0;
+    
+    // Apply settings
+    this.updateSettings(this.gefManifest.settings);
+    
+    // Fake the source dimensions for the renderer to size its grid correctly
+    (this.source as any)._width = this.gefManifest.resolution.width;
+    (this.source as any)._height = this.gefManifest.resolution.height;
+    (this.source as any)._isReady = true;
+    (this.source as any)._isPlaying = true;
+    
+    this.play();
+  }
+
   private renderLoop = () => {
     if (!this._isRendering) return;
-    this.renderer.render();
+    
+    if (this.gefManifest) {
+      const now = performance.now();
+      const elapsed = (now - this.gefStartTime) / 1000;
+      this.gefCurrentFrame = Math.floor(elapsed * this.gefManifest.fps) % this.gefManifest.frameCount;
+      
+      const packedFrame = this.gefFrames[this.gefCurrentFrame];
+      if (packedFrame && this.renderer instanceof WebGPURenderer) {
+        const unpacked = GefFormat.unpackFrame(packedFrame);
+        this.renderer.setFrameData(unpacked);
+        this.renderer.render();
+      }
+    } else {
+      this.renderer.render();
+    }
+    
     this.rafId = requestAnimationFrame(this.renderLoop);
   };
 

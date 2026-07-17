@@ -41,10 +41,14 @@ export default function App() {
   const handleVideoSelected = async (file: File) => {
     if (!engine) return;
     try {
-      await engine.loadVideo(file);
+      if (file.name.endsWith('.gef')) {
+        await engine.loadGef(file);
+      } else {
+        await engine.loadVideo(file);
+      }
       setHasVideo(true);
     } catch (err: any) {
-      setError('Failed to decode video. Please try a different file.');
+      setError('Failed to load file. ' + err.message);
     }
   };
 

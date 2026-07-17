@@ -21,7 +21,7 @@ export function WelcomeScreen({ onVideoSelected }: WelcomeScreenProps) {
     e.preventDefault();
     setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
-    if (file && file.type.startsWith('video/')) {
+    if (file && (file.type.startsWith('video/') || file.name.endsWith('.gef'))) {
       onVideoSelected(file);
     }
   };
@@ -81,13 +81,13 @@ export function WelcomeScreen({ onVideoSelected }: WelcomeScreenProps) {
           <span>MP4</span><span>•</span>
           <span>MOV</span><span>•</span>
           <span>WEBM</span><span>•</span>
-          <span>AVI</span>
+          <span>.GEF</span>
         </div>
       </div>
       <input 
         ref={fileInputRef} 
         type="file" 
-        accept="video/*" 
+        accept="video/*,.gef" 
         style={{ display: 'none' }} 
         onChange={handleFileChange} 
       />

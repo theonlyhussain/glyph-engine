@@ -15,6 +15,7 @@ export class WebGPURenderer implements Renderer {
   private atlasSampler: GPUSampler | null = null;
   private uniformsBuffer: GPUBuffer | null = null;
   private cellDataBuffer: GPUBuffer | null = null;
+  private stagingBuffer: GPUBuffer | null = null;
   private atlasTexture: GPUTexture | null = null;
 
   private source: VideoSource | null = null;
@@ -28,9 +29,11 @@ export class WebGPURenderer implements Renderer {
     saturation: 1.0,
     quality: 1
   };
+  public getSettings(): RenderSettings { return this.settings; }
   
   private gridSize = { w: 0, h: 0 };
   public instanceCount = 0;
+  public isGefMode = false;
 
   public async init(canvas: HTMLCanvasElement): Promise<void> {
     if (!navigator.gpu) throw new Error('WebGPU not supported');
@@ -112,7 +115,7 @@ export class WebGPURenderer implements Renderer {
 
   public render(): void {
     if (!this.device || !this.context || !this.source || !this.atlasTexture) return;
-    if (!this.source.isReady || !this.source.isPlaying || this.source.width === 0) return;
+    if (!this.source.isReady || this.source.width === 0) return;
 
     try {
       const gridW = Math.ceil(this.source.width / this.settings.density);
@@ -125,7 +128,13 @@ export class WebGPURenderer implements Renderer {
         if (this.cellDataBuffer) this.cellDataBuffer.destroy();
         this.cellDataBuffer = this.device.createBuffer({
           size: this.instanceCount * 32, // 2 x vec4<f32> = 32 bytes
-          usage: GPUBufferUsage.STORAGE,
+          usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
+        });
+        
+        if (this.stagingBuffer) this.stagingBuffer.destroy();
+        this.stagingBuffer = this.device.createBuffer({
+          size: this.instanceCount * 32,
+          usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
         });
       }
 
@@ -169,31 +178,35 @@ export class WebGPURenderer implements Renderer {
 
       this.device.queue.writeBuffer(this.uniformsBuffer!, 0, uniformData);
 
-      let externalTexture: GPUExternalTexture;
-      try {
-        externalTexture = this.device.importExternalTexture({ source: this.source.element });
-      } catch (e) {
-        // Video frame not fully ready, skip frame
-        return;
+      let externalTexture: GPUExternalTexture | null = null;
+      if (!this.isGefMode) {
+        try {
+          externalTexture = this.device.importExternalTexture({ source: this.source.element });
+        } catch (e) {
+          // Video frame not fully ready, skip frame
+          return;
+        }
       }
 
       const commandEncoder = this.device.createCommandEncoder();
 
       // Compute pass
-      const analyzeBindGroup = this.device.createBindGroup({
-        layout: this.analyzePipeline!.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: this.sampler! },
-          { binding: 1, resource: externalTexture },
-          { binding: 2, resource: { buffer: this.cellDataBuffer! } },
-          { binding: 3, resource: { buffer: this.uniformsBuffer! } },
-        ],
-      });
-      const computePass = commandEncoder.beginComputePass();
-      computePass.setPipeline(this.analyzePipeline!);
-      computePass.setBindGroup(0, analyzeBindGroup);
-      computePass.dispatchWorkgroups(Math.ceil(gridW / 16), Math.ceil(gridH / 16));
-      computePass.end();
+      if (!this.isGefMode && externalTexture) {
+        const analyzeBindGroup = this.device.createBindGroup({
+          layout: this.analyzePipeline!.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: this.sampler! },
+            { binding: 1, resource: externalTexture },
+            { binding: 2, resource: { buffer: this.cellDataBuffer! } },
+            { binding: 3, resource: { buffer: this.uniformsBuffer! } },
+          ],
+        });
+        const computePass = commandEncoder.beginComputePass();
+        computePass.setPipeline(this.analyzePipeline!);
+        computePass.setBindGroup(0, analyzeBindGroup);
+        computePass.dispatchWorkgroups(Math.ceil(gridW / 16), Math.ceil(gridH / 16));
+        computePass.end();
+      }
 
       // Render pass
       const glyphBindGroup = this.device.createBindGroup({
@@ -223,6 +236,40 @@ export class WebGPURenderer implements Renderer {
     } catch (err) {
       console.error('[WebGPURenderer] Render error:', err);
     }
+  }
+  
+  public setFrameData(data: Float32Array): void {
+    if (!this.device || !this.cellDataBuffer) return;
+    this.device.queue.writeBuffer(this.cellDataBuffer, 0, data);
+  }
+
+  public async extractCurrentFrame(): Promise<Float32Array> {
+    if (!this.device || !this.cellDataBuffer || !this.stagingBuffer) {
+      throw new Error("Renderer not initialized");
+    }
+    
+    // Perform a forced render pass cycle to populate cellDataBuffer
+    this.render();
+    
+    const commandEncoder = this.device.createCommandEncoder();
+    commandEncoder.copyBufferToBuffer(
+      this.cellDataBuffer, 0, 
+      this.stagingBuffer, 0, 
+      this.instanceCount * 32
+    );
+    this.device.queue.submit([commandEncoder.finish()]);
+    
+    // Wait for the copy to finish
+    await this.device.queue.onSubmittedWorkDone();
+    
+    // Map the staging buffer
+    await this.stagingBuffer.mapAsync(GPUMapMode.READ);
+    
+    // Create a copy of the array so we can unmap the buffer
+    const copy = new Float32Array(this.stagingBuffer.getMappedRange()).slice();
+    this.stagingBuffer.unmap();
+    
+    return copy;
   }
 
   public destroy(): void {
