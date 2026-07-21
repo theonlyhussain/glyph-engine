@@ -34,6 +34,7 @@ export class WebGPURenderer implements Renderer {
   private gridSize = { w: 0, h: 0 };
   public instanceCount = 0;
   public isGefMode = false;
+  public gefDimensions = { width: 0, height: 0 };
 
   public async init(canvas: HTMLCanvasElement): Promise<void> {
     if (!navigator.gpu) throw new Error('WebGPU not supported');
@@ -115,11 +116,16 @@ export class WebGPURenderer implements Renderer {
 
   public render(): void {
     if (!this.device || !this.context || !this.source || !this.atlasTexture) return;
-    if (!this.source.isReady || this.source.width === 0) return;
+    
+    const w = this.isGefMode ? this.gefDimensions.width : this.source.width;
+    const h = this.isGefMode ? this.gefDimensions.height : this.source.height;
+    const ready = this.isGefMode ? true : this.source.isReady;
+    
+    if (!ready || w === 0) return;
 
     try {
-      const gridW = Math.ceil(this.source.width / this.settings.density);
-      const gridH = Math.ceil(this.source.height / this.settings.density);
+      const gridW = Math.ceil(w / this.settings.density);
+      const gridH = Math.ceil(h / this.settings.density);
 
       if (this.gridSize.w !== gridW || this.gridSize.h !== gridH) {
         this.gridSize = { w: gridW, h: gridH };
@@ -140,17 +146,11 @@ export class WebGPURenderer implements Renderer {
 
       // 64 bytes (16 x 4)
       this.device.queue.writeBuffer(this.uniformsBuffer!, 0, new Float32Array([
-        this.source.width, this.source.height,
+        w, h,
         gridW, gridH,
         this.settings.density,
         performance.now() / 1000,
         this.atlas!.cols, this.atlas!.rows,
-        
-        // Use Float32Array but the shader reads them as u32/f32 correctly based on layout
-        // JavaScript bitwise trick to cast float bits to uint bits is not needed 
-        // if we just pass small integers that fit exactly in f32 without losing precision,
-        // WebGPU will read the f32 bits. WAIT: `u32` in WGSL expects integer bits.
-        // We must pass an ArrayBuffer and use a DataView to write properly, or use mixed arrays.
       ]));
       
       const uniformData = new ArrayBuffer(64);

@@ -5,6 +5,7 @@ import { VideoSource } from './VideoSource';
 import { GlyphAtlas } from './GlyphAtlas';
 import { GefFormat } from './GefFormat';
 import type { GefManifest } from './GefFormat';
+import { WavEncoder } from './WavEncoder';
 
 export class GlyphEngine {
   private canvas: HTMLCanvasElement;
@@ -19,6 +20,9 @@ export class GlyphEngine {
   private gefManifest: GefManifest | null = null;
   private gefCurrentFrame = 0;
   private gefStartTime = 0;
+  private gefAudioElement: HTMLAudioElement | null = null;
+  
+  public exportProgress: number = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -47,15 +51,28 @@ export class GlyphEngine {
     (this.renderer as any).isGefMode = false;
     this.gefFrames = [];
     this.gefManifest = null;
+    this.cleanupGefAudio();
     await this.source.load(file);
     if (!this._isRendering) {
       this.play();
     }
   }
 
+  private cleanupGefAudio(): void {
+    if (this.gefAudioElement) {
+      this.gefAudioElement.pause();
+      this.gefAudioElement.removeAttribute('src');
+      this.gefAudioElement = null;
+    }
+  }
+
   public play(): void {
     if (this.gefManifest) {
       this.gefStartTime = performance.now() - (this.gefCurrentFrame / this.gefManifest.fps) * 1000;
+      if (this.gefAudioElement) {
+        this.gefAudioElement.currentTime = this.gefCurrentFrame / this.gefManifest.fps;
+        this.gefAudioElement.play().catch(e => console.warn('GEF Audio play failed:', e));
+      }
       this._isRendering = true;
       this.renderLoop();
     } else {
@@ -68,7 +85,11 @@ export class GlyphEngine {
   }
 
   public pause(): void {
-    if (!this.gefManifest) this.source.pause();
+    if (!this.gefManifest) {
+      this.source.pause();
+    } else if (this.gefAudioElement) {
+      this.gefAudioElement.pause();
+    }
     this._isRendering = false;
     cancelAnimationFrame(this.rafId);
   }
@@ -91,18 +112,47 @@ export class GlyphEngine {
   }
 
   // Playback & Audio APIs
-  public get duration(): number { return this.source.duration; }
-  public get currentTime(): number { return this.source.currentTime; }
-  public set currentTime(time: number) { this.source.currentTime = time; }
+  public get duration(): number {
+    if (this.gefManifest) return this.gefManifest.frameCount / this.gefManifest.fps;
+    return this.source.duration;
+  }
+  public get currentTime(): number {
+    if (this.gefManifest) return this.gefCurrentFrame / this.gefManifest.fps;
+    return this.source.currentTime;
+  }
+  public set currentTime(time: number) {
+    if (this.gefManifest) {
+      this.gefCurrentFrame = Math.floor(time * this.gefManifest.fps) % this.gefManifest.frameCount;
+      this.gefStartTime = performance.now() - (this.gefCurrentFrame / this.gefManifest.fps) * 1000;
+      if (this.gefAudioElement) this.gefAudioElement.currentTime = time;
+    } else {
+      this.source.currentTime = time;
+    }
+  }
   public get volume(): number { return this.source.volume; }
   public set volume(v: number) { this.source.volume = v; }
-  public get muted(): boolean { return this.source.muted; }
-  public set muted(m: boolean) { this.source.muted = m; }
+  public get muted(): boolean {
+    if (this.gefAudioElement) return this.gefAudioElement.muted;
+    return this.source.muted;
+  }
+  public set muted(m: boolean) {
+    this.source.muted = m;
+    if (this.gefAudioElement) this.gefAudioElement.muted = m;
+  }
   public get playbackRate(): number { return this.source.playbackRate; }
   public set playbackRate(r: number) { this.source.playbackRate = r; }
 
   public updateSettings(settings: Partial<RenderSettings>): void {
+    if ((this.renderer as any).isGefMode) {
+      // Prevent changing settings that alter the buffer size or baked geometry during GEF playback
+      delete settings.density;
+      delete settings.renderMode;
+    }
     this.renderer.updateSettings(settings);
+    // If we are paused, force a single render frame so changes are visible instantly
+    if (!this._isRendering) {
+      this.renderer.render();
+    }
   }
 
   public async setAtlas(atlas: GlyphAtlas): Promise<void> {
@@ -114,7 +164,10 @@ export class GlyphEngine {
     if (!(this.renderer instanceof WebGPURenderer)) throw new Error('Export only supported in WebGPU');
     if (!this.source.isReady) throw new Error('No video loaded');
 
-    this.pause();
+    const wasPlaying = this.isPlaying;
+    this.pause(); // Stops main renderLoop
+    
+    const originalTime = this.source.currentTime;
     
     const seekVideo = (time: number): Promise<void> => {
       return new Promise((resolve) => {
@@ -135,10 +188,26 @@ export class GlyphEngine {
     const totalFrames = Math.floor(this.source.duration * fps);
     const frames: Uint8Array[] = [];
     
+    this.exportProgress = 0;
+    
     for (let i = 0; i < totalFrames; i++) {
       await seekVideo(i / fps);
       const rawData = await this.renderer.extractCurrentFrame();
       frames.push(GefFormat.packFrame(rawData));
+      this.exportProgress = (i / totalFrames) * 100;
+    }
+    
+    let audioBlob: Blob | null = null;
+    if (this.source.originalFile) {
+      try {
+        const audioCtx = new AudioContext();
+        const buffer = await this.source.originalFile.arrayBuffer();
+        const audioBuffer = await audioCtx.decodeAudioData(buffer);
+        audioBlob = WavEncoder.encode(audioBuffer);
+        audioCtx.close();
+      } catch (err) {
+        console.warn('Failed to extract audio for GEF:', err);
+      }
     }
     
     const manifest: GefManifest = {
@@ -151,10 +220,13 @@ export class GlyphEngine {
       createdAt: new Date().toISOString()
     };
     
-    const blob = await GefFormat.createGef(manifest, frames, null);
+    const blob = await GefFormat.createGef(manifest, frames, null, audioBlob);
     
-    // Resume playback after export
-    this.play();
+    // Restore state
+    await seekVideo(originalTime);
+    if (wasPlaying) {
+      this.play();
+    }
     
     return blob;
   }
@@ -162,20 +234,24 @@ export class GlyphEngine {
   public async loadGef(file: File): Promise<void> {
     this.pause();
     (this.renderer as any).isGefMode = true;
+    this.cleanupGefAudio();
     
     const parsed = await GefFormat.parseGef(file);
     this.gefManifest = parsed.manifest;
     this.gefFrames = parsed.frames;
     this.gefCurrentFrame = 0;
     
+    if (parsed.audio) {
+      this.gefAudioElement = document.createElement('audio');
+      this.gefAudioElement.src = URL.createObjectURL(parsed.audio);
+      this.gefAudioElement.load();
+    }
+    
     // Apply settings
     this.updateSettings(this.gefManifest.settings);
     
-    // Fake the source dimensions for the renderer to size its grid correctly
-    (this.source as any)._width = this.gefManifest.resolution.width;
-    (this.source as any)._height = this.gefManifest.resolution.height;
-    (this.source as any)._isReady = true;
-    (this.source as any)._isPlaying = true;
+    // Pass the correct dimensions to the renderer
+    (this.renderer as any).gefDimensions = this.gefManifest.resolution;
     
     this.play();
   }
@@ -203,6 +279,7 @@ export class GlyphEngine {
 
   public destroy(): void {
     this.pause();
+    this.cleanupGefAudio();
     this.source.destroy();
     this.renderer.destroy();
   }

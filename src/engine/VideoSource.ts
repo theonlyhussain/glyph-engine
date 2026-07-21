@@ -1,5 +1,7 @@
 export class VideoSource {
   public element: HTMLVideoElement;
+  public originalFile: File | null = null;
+  public filename: string = 'project';
   private currentBlobUrl: string | null = null;
   public onMeta: ((width: number, height: number) => void) | null = null;
 
@@ -18,6 +20,14 @@ export class VideoSource {
   }
 
   public async load(file: File | Blob): Promise<void> {
+    if (file instanceof File) {
+      this.originalFile = file;
+      this.filename = file.name.split('.').slice(0, -1).join('.') || 'project';
+    } else {
+      this.originalFile = null;
+      this.filename = 'project';
+    }
+
     if (this.currentBlobUrl) {
       URL.revokeObjectURL(this.currentBlobUrl);
       this.currentBlobUrl = null;

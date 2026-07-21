@@ -27,16 +27,56 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const handleResize = () => {
-      if (canvasRef.current) {
-        canvasRef.current.width = window.innerWidth;
-        canvasRef.current.height = window.innerHeight;
+    let animationFrameId: number;
+    
+    const updateCanvasSize = () => {
+      if (!canvasRef.current) return;
+      
+      let targetW = window.innerWidth;
+      let targetH = window.innerHeight;
+      
+      let sourceW = 0;
+      let sourceH = 0;
+      
+      if (engine) {
+        if ((engine.getRenderer() as any).isGefMode) {
+          const dim = (engine.getRenderer() as any).gefDimensions;
+          sourceW = dim?.width || 0;
+          sourceH = dim?.height || 0;
+        } else if (engine.videoElement && engine.videoElement.videoWidth > 0) {
+          sourceW = engine.videoElement.videoWidth;
+          sourceH = engine.videoElement.videoHeight;
+        }
       }
+      
+      if (sourceW > 0 && sourceH > 0) {
+        const videoRatio = sourceW / sourceH;
+        const windowRatio = window.innerWidth / window.innerHeight;
+        
+        if (videoRatio > windowRatio) {
+          targetW = window.innerWidth;
+          targetH = window.innerWidth / videoRatio;
+        } else {
+          targetH = window.innerHeight;
+          targetW = window.innerHeight * videoRatio;
+        }
+      }
+      
+      const pixelRatio = window.devicePixelRatio || 1;
+      const finalW = Math.round(targetW * pixelRatio);
+      const finalH = Math.round(targetH * pixelRatio);
+      
+      if (canvasRef.current.width !== finalW || canvasRef.current.height !== finalH) {
+        canvasRef.current.width = finalW;
+        canvasRef.current.height = finalH;
+      }
+      
+      animationFrameId = requestAnimationFrame(updateCanvasSize);
     };
-    window.addEventListener('resize', handleResize);
-    handleResize();
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+    
+    animationFrameId = requestAnimationFrame(updateCanvasSize);
+    return () => cancelAnimationFrame(animationFrameId);
+  }, [engine]);
 
   const handleVideoSelected = async (file: File) => {
     if (!engine) return;

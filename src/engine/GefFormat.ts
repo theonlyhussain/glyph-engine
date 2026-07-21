@@ -11,6 +11,13 @@ export interface GefManifest {
   createdAt: string;
 }
 
+export interface GefParsed {
+  manifest: GefManifest;
+  frames: Uint8Array[];
+  thumbnail: Blob | null;
+  audio: Blob | null;
+}
+
 export class GefFormat {
   /**
    * Packs a 32-byte per-cell Float32Array (from WebGPU) into a 5-byte per-cell Uint8Array.
@@ -72,38 +79,36 @@ export class GefFormat {
     return cellData;
   }
 
-  public static async createGef(
-    manifest: GefManifest,
-    frames: Uint8Array[],
-    thumbnailBlob: Blob | null
-  ): Promise<Blob> {
+  public static async createGef(manifest: GefManifest, frames: Uint8Array[], thumbnail: Blob | null, audio: Blob | null): Promise<Blob> {
     const zip = new JSZip();
-    zip.file('manifest.json', JSON.stringify(manifest, null, 2));
     
-    if (thumbnailBlob) {
-      zip.file('thumbnail.png', thumbnailBlob);
-    }
+    zip.file("manifest.json", JSON.stringify(manifest, null, 2));
     
-    // Concatenate all frames into one large binary blob to maximize zip compression efficiency
-    const totalSize = frames.reduce((acc, f) => acc + f.length, 0);
-    const combinedFrames = new Uint8Array(totalSize);
+    const combinedFrames = new Uint8Array(frames.reduce((acc, f) => acc + f.length, 0));
     let offset = 0;
-    for (const frame of frames) {
-      combinedFrames.set(frame, offset);
-      offset += frame.length;
+    for (const f of frames) {
+      combinedFrames.set(f, offset);
+      offset += f.length;
     }
     
-    zip.file('frames.bin', combinedFrames);
+    zip.file("frames.bin", combinedFrames);
     
-    // Use DEFLATE compression to significantly reduce file size
+    if (thumbnail) {
+      zip.file("thumbnail.png", thumbnail);
+    }
+
+    if (audio) {
+      zip.file("audio.wav", audio);
+    }
+    
     return await zip.generateAsync({ 
-      type: 'blob', 
-      compression: 'DEFLATE',
-      compressionOptions: { level: 6 } // Good balance of speed and size
+      type: "blob",
+      compression: "DEFLATE",
+      compressionOptions: { level: 6 }
     });
   }
 
-  public static async parseGef(blob: Blob): Promise<{ manifest: GefManifest, frames: Uint8Array[], thumbnail?: Blob }> {
+  public static async parseGef(blob: Blob): Promise<GefParsed> {
     const zip = await JSZip.loadAsync(blob);
     
     const manifestFile = zip.file('manifest.json');
@@ -132,12 +137,18 @@ export class GefFormat {
       frames.push(combinedFrames.slice(offset, offset + frameSize));
     }
     
-    const thumbFile = zip.file('thumbnail.png');
-    let thumbnail: Blob | undefined;
+    let thumbnail: Blob | null = null;
+    const thumbFile = zip.file("thumbnail.png");
     if (thumbFile) {
-      thumbnail = await thumbFile.async('blob');
+      thumbnail = await thumbFile.async("blob");
+    }
+
+    let audio: Blob | null = null;
+    const audioFile = zip.file("audio.wav");
+    if (audioFile) {
+      audio = await audioFile.async("blob");
     }
     
-    return { manifest, frames, thumbnail };
+    return { manifest, frames, thumbnail, audio };
   }
 }

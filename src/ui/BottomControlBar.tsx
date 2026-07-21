@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { GlyphEngine } from '../engine/GlyphEngine';
+import { EmbedModal } from './EmbedModal';
 
 interface BottomControlBarProps {
   engine: GlyphEngine;
@@ -20,6 +21,8 @@ export function BottomControlBar({ engine, onOpenSettings, isVisible }: BottomCo
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isEmbedModalOpen, setIsEmbedModalOpen] = useState(false);
+  const [exportProgress, setExportProgress] = useState(0);
   const isDraggingRef = useRef(false);
 
   useEffect(() => {
@@ -29,6 +32,10 @@ export function BottomControlBar({ engine, onOpenSettings, isVisible }: BottomCo
         setCurrentTime(engine.currentTime);
       }
       setDuration(engine.duration || 0);
+      setIsPlaying(engine.isPlaying);
+      if (engine.exportProgress > 0 && engine.exportProgress < 100) {
+        setExportProgress(engine.exportProgress);
+      }
       raf = requestAnimationFrame(updateTime);
     };
     raf = requestAnimationFrame(updateTime);
@@ -69,7 +76,11 @@ export function BottomControlBar({ engine, onOpenSettings, isVisible }: BottomCo
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'project.gef';
+      
+      // Attempt to get filename from source, defaulting to 'project.gef'
+      const basename = (engine as any).source?.filename || 'project';
+      a.download = `${basename}.gef`;
+      
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -91,7 +102,27 @@ export function BottomControlBar({ engine, onOpenSettings, isVisible }: BottomCo
       fontFamily: 'system-ui, -apple-system, sans-serif', color: '#fff',
       pointerEvents: isVisible ? 'auto' : 'none', zIndex: 40
     }}>
+      {/* Modals */}
+      <EmbedModal isOpen={isEmbedModalOpen} onClose={() => setIsEmbedModalOpen(false)} />
       
+      {/* Export Overlay */}
+      {isExporting && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: '#0f172a', zIndex: 9999, display: 'flex',
+          flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          color: '#f8fafc', fontFamily: 'system-ui, -apple-system, sans-serif'
+        }}>
+          <h2 style={{ marginBottom: 16 }}>Exporting Project...</h2>
+          <div style={{ width: 300, height: 8, background: '#1e293b', borderRadius: 4, overflow: 'hidden', marginBottom: 16 }}>
+            <div style={{ width: `${exportProgress}%`, height: '100%', background: '#3b82f6', transition: 'width 0.1s linear' }} />
+          </div>
+          <div style={{ fontSize: 14, color: '#94a3b8' }}>
+            {exportProgress > 99 ? 'Extracting audio...' : `${Math.round(exportProgress)}%`}
+          </div>
+        </div>
+      )}
+
       {/* Timeline */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
         <span style={{ fontSize: 13, width: 40, textAlign: 'right', color: '#cbd5e1' }}>{formatTime(currentTime)}</span>
@@ -134,6 +165,9 @@ export function BottomControlBar({ engine, onOpenSettings, isVisible }: BottomCo
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+          <button onClick={() => setIsEmbedModalOpen(true)} style={btnStyle} title="Get Embed Code">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
+          </button>
           <button onClick={handleExport} style={{ ...btnStyle, opacity: isExporting ? 0.7 : 1, fontSize: 12, fontWeight: 'bold' }} title="Export .gef">
             {isExporting ? (
               <span>EXPORTING...</span>
