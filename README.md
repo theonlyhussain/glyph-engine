@@ -97,7 +97,7 @@ Embed your `.gef` renders directly on your portfolio or website:
 
 <!-- Add the custom element -->
 <glyph-player 
-  src="https://your-domain.com/path-to-your-file.gef" 
+  src="https://your-file name.gef" 
   style="width: 100%; height: 500px; display: block;"
 ></glyph-player>
 ```
