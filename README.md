@@ -114,7 +114,7 @@ Embed your `.gef` renders directly on your portfolio or website:
 * **Embed Button (`</>`)**: Copy ready-to-use HTML embed code.
 * **Ctrl + Shift + D**: Toggle Developer Mode HUD (FPS, glyph count, VRAM estimate).
 
-----
+-----
 
 ## 📄 License
 
