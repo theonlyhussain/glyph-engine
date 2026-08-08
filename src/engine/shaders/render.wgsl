@@ -87,41 +87,26 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let alpha = glyph.r;
   
   var finalColor = in.color;
-  var outAlpha = alpha;
   
   // Color Modes
   if (uniforms.colorMode == 0u) { // True Color
-    // Ink-coverage correction blending
-    // Darken the background based on how much ink the glyph lacks
-    let bgIntensity = clamp(1.0 - in.lum, 0.0, 1.0) * 0.4; 
-    let bgColor = in.color * bgIntensity;
-    
-    // Boost the foreground ink to preserve overall energy
-    let fgColor = in.color * clamp(1.0 / max(in.lum, 0.15), 1.0, 3.0);
-    
-    finalColor = mix(bgColor, fgColor, alpha);
-    outAlpha = 1.0; // Cell is fully opaque since we render the background
-  } else if (uniforms.colorMode == 1u) { // White
-    finalColor = vec3<f32>(in.lum, in.lum, in.lum);
-  } else if (uniforms.colorMode == 2u) { // Matrix
+    finalColor = in.color;
+  } else if (uniforms.colorMode == 1u) { // Matrix
     finalColor = vec3<f32>(0.0, in.lum, 0.2 * in.lum);
-  } else if (uniforms.colorMode == 3u) { // Amber
+  } else if (uniforms.colorMode == 2u) { // Amber CRT
     finalColor = vec3<f32>(1.0 * in.lum, 0.7 * in.lum, 0.0);
-  } else if (uniforms.colorMode == 4u) { // Terminal Green
-    finalColor = vec3<f32>(0.2 * in.lum, 1.0 * in.lum, 0.2 * in.lum);
-  } else if (uniforms.colorMode == 5u) { // Monochrome
+  } else if (uniforms.colorMode == 3u) { // Monochrome
     let m = dot(in.color, vec3<f32>(0.2126, 0.7152, 0.0722));
     finalColor = vec3<f32>(m, m, m);
   }
   
   finalColor = applyColorCorrection(finalColor);
   
-  if (uniforms.colorMode != 0u) {
-    finalColor = finalColor * alpha;
-  }
+  // Pure alpha — the ONLY thing carrying color is the letter ink itself
+  finalColor = finalColor * alpha;
   
   // Convert from Linear back to sRGB for the canvas
   finalColor = pow(finalColor, vec3<f32>(1.0 / 2.2));
   
-  return vec4<f32>(finalColor, outAlpha);
+  return vec4<f32>(finalColor, alpha);
 }

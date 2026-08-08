@@ -28,7 +28,7 @@ export class GlyphAtlas {
     ctx.fillStyle = '#ffffff';
     ctx.textBaseline = 'middle';
     ctx.textAlign = 'center';
-    ctx.font = `${Math.floor(this.glyphSize * 0.8)}px monospace`;
+    ctx.font = `900 ${Math.floor(this.glyphSize * 1.15)}px Impact, "Arial Black", sans-serif`;
     
     let i = 0;
     for (let row = 0; row < this.rows; row++) {

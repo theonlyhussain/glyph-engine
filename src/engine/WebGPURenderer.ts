@@ -21,7 +21,7 @@ export class WebGPURenderer implements Renderer {
   private source: VideoSource | null = null;
   private atlas: GlyphAtlas | null = null;
   private settings: RenderSettings = { 
-    density: 4, 
+    density: 2, 
     colorMode: 0, 
     renderMode: 0,
     brightness: 1.0,
@@ -112,7 +112,18 @@ export class WebGPURenderer implements Renderer {
       { source: bitmap }, { texture: this.atlasTexture },
       [bitmap.width, bitmap.height]
     );
+    
+    // Invalidate cached bind group since atlas texture changed
+    this.cachedRenderBindGroup = null;
   }
+
+  // Pre-allocated uniform data buffer (avoids GC pressure from allocating every frame)
+  private uniformData = new ArrayBuffer(64);
+  private uniformView = new DataView(this.uniformData);
+  
+  // Cached bind group for the render pass (recreated only on grid resize)
+  private cachedRenderBindGroup: GPUBindGroup | null = null;
+  private cachedAtlasView: GPUTextureView | null = null;
 
   public render(): void {
     if (!this.device || !this.context || !this.source || !this.atlasTexture) return;
@@ -133,7 +144,7 @@ export class WebGPURenderer implements Renderer {
         
         if (this.cellDataBuffer) this.cellDataBuffer.destroy();
         this.cellDataBuffer = this.device.createBuffer({
-          size: this.instanceCount * 32, // 2 x vec4<f32> = 32 bytes
+          size: this.instanceCount * 32,
           usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
         });
         
@@ -142,55 +153,57 @@ export class WebGPURenderer implements Renderer {
           size: this.instanceCount * 32,
           usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
         });
+        
+        // Invalidate cached bind group
+        this.cachedRenderBindGroup = null;
+      }
+      
+      // Build render bind group once per grid resize (not every frame)
+      if (!this.cachedRenderBindGroup) {
+        this.cachedAtlasView = this.atlasTexture.createView();
+        this.cachedRenderBindGroup = this.device.createBindGroup({
+          layout: this.glyphPipeline!.getBindGroupLayout(0),
+          entries: [
+            { binding: 0, resource: { buffer: this.uniformsBuffer! } },
+            { binding: 1, resource: { buffer: this.cellDataBuffer! } },
+            { binding: 2, resource: this.atlasSampler! },
+            { binding: 3, resource: this.cachedAtlasView },
+          ],
+        });
       }
 
-      // 64 bytes (16 x 4)
-      this.device.queue.writeBuffer(this.uniformsBuffer!, 0, new Float32Array([
-        w, h,
-        gridW, gridH,
-        this.settings.density,
-        performance.now() / 1000,
-        this.atlas!.cols, this.atlas!.rows,
-      ]));
-      
-      const uniformData = new ArrayBuffer(64);
-      const view = new DataView(uniformData);
-      
-      view.setFloat32(0, this.source.width, true);
-      view.setFloat32(4, this.source.height, true);
-      view.setFloat32(8, gridW, true);
-      view.setFloat32(12, gridH, true);
-      
-      view.setFloat32(16, this.settings.density, true);
-      view.setFloat32(20, performance.now() / 1000, true);
-      view.setFloat32(24, this.atlas!.cols, true);
-      view.setFloat32(28, this.atlas!.rows, true);
-      
-      view.setUint32(32, this.settings.colorMode, true);
-      view.setUint32(36, this.settings.renderMode, true);
-      view.setUint32(40, this.settings.quality, true);
-      view.setFloat32(44, this.settings.brightness, true);
-      
-      view.setFloat32(48, this.settings.contrast, true);
-      view.setFloat32(52, this.settings.saturation, true);
-      view.setFloat32(56, 0, true); // padding
-      view.setFloat32(60, 0, true); // padding
-
-      this.device.queue.writeBuffer(this.uniformsBuffer!, 0, uniformData);
+      // Write uniforms ONCE per frame (was being written twice before!)
+      const v = this.uniformView;
+      v.setFloat32(0, w, true);
+      v.setFloat32(4, h, true);
+      v.setFloat32(8, gridW, true);
+      v.setFloat32(12, gridH, true);
+      v.setFloat32(16, this.settings.density, true);
+      v.setFloat32(20, performance.now() / 1000, true);
+      v.setFloat32(24, this.atlas!.cols, true);
+      v.setFloat32(28, this.atlas!.rows, true);
+      v.setUint32(32, this.settings.colorMode, true);
+      v.setUint32(36, this.settings.renderMode, true);
+      v.setUint32(40, this.settings.quality, true);
+      v.setFloat32(44, this.settings.brightness, true);
+      v.setFloat32(48, this.settings.contrast, true);
+      v.setFloat32(52, this.settings.saturation, true);
+      v.setFloat32(56, 0, true);
+      v.setFloat32(60, 0, true);
+      this.device.queue.writeBuffer(this.uniformsBuffer!, 0, this.uniformData);
 
       let externalTexture: GPUExternalTexture | null = null;
       if (!this.isGefMode) {
         try {
           externalTexture = this.device.importExternalTexture({ source: this.source.element });
         } catch (e) {
-          // Video frame not fully ready, skip frame
-          return;
+          return; // Video frame not ready, skip
         }
       }
 
       const commandEncoder = this.device.createCommandEncoder();
 
-      // Compute pass
+      // Compute pass (analyze video frame into cell data)
       if (!this.isGefMode && externalTexture) {
         const analyzeBindGroup = this.device.createBindGroup({
           layout: this.analyzePipeline!.getBindGroupLayout(0),
@@ -208,16 +221,7 @@ export class WebGPURenderer implements Renderer {
         computePass.end();
       }
 
-      // Render pass
-      const glyphBindGroup = this.device.createBindGroup({
-        layout: this.glyphPipeline!.getBindGroupLayout(0),
-        entries: [
-          { binding: 0, resource: { buffer: this.uniformsBuffer! } },
-          { binding: 1, resource: { buffer: this.cellDataBuffer! } },
-          { binding: 2, resource: this.atlasSampler! },
-          { binding: 3, resource: this.atlasTexture.createView() },
-        ],
-      });
+      // Render pass (draw glyphs)
       const textureView = this.context.getCurrentTexture().createView();
       const renderPass = commandEncoder.beginRenderPass({
         colorAttachments: [{
@@ -227,7 +231,7 @@ export class WebGPURenderer implements Renderer {
         }],
       });
       renderPass.setPipeline(this.glyphPipeline!);
-      renderPass.setBindGroup(0, glyphBindGroup);
+      renderPass.setBindGroup(0, this.cachedRenderBindGroup!);
       renderPass.draw(6, this.instanceCount);
       renderPass.end();
 

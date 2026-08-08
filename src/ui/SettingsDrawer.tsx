@@ -9,7 +9,7 @@ interface SettingsDrawerProps {
 }
 
 export function SettingsDrawer({ engine, isOpen, onClose }: SettingsDrawerProps) {
-  const [density, setDensity] = useState(4); // Default to True Color optimized density
+  const [density, setDensity] = useState(2);
   const [userSetDensity, setUserSetDensity] = useState(false);
   const [renderMode, setRenderMode] = useState(0);
   const [colorMode, setColorMode] = useState(0);
@@ -39,6 +39,25 @@ export function SettingsDrawer({ engine, isOpen, onClose }: SettingsDrawerProps)
         engine.updateSettings(s);
       }
     } catch (err) { console.error('Failed to parse settings'); }
+  }, [engine]);
+
+  // Sync UI sliders with auto-calibration results
+  useEffect(() => {
+    let raf: number;
+    let lastCal: any = null;
+    const checkCalibration = () => {
+      if (engine.lastCalibration && engine.lastCalibration !== lastCal) {
+        lastCal = engine.lastCalibration;
+        const cal = engine.lastCalibration;
+        setDensity(cal.density);
+        setBrightness(cal.brightness);
+        setContrast(cal.contrast);
+        setSaturation(cal.saturation);
+      }
+      raf = requestAnimationFrame(checkCalibration);
+    };
+    raf = requestAnimationFrame(checkCalibration);
+    return () => cancelAnimationFrame(raf);
   }, [engine]);
 
   const updateEngine = (updates: any) => {
@@ -102,22 +121,12 @@ export function SettingsDrawer({ engine, isOpen, onClose }: SettingsDrawerProps)
           <select value={colorMode} onChange={e => {
             const v = parseInt(e.target.value, 10);
             setColorMode(v); 
-            
-            let newDensity = density;
-            if (!userSetDensity) {
-              if (v === 0) newDensity = 4; // True Color (denser)
-              else newDensity = 6; // Stylized modes (clearer text)
-              setDensity(newDensity);
-            }
-            
-            updateEngine({ colorMode: v, density: newDensity });
+            updateEngine({ colorMode: v });
           }} style={selectStyle}>
             <option value={0}>True Color</option>
-            <option value={5}>Monochrome</option>
-            <option value={2}>Matrix</option>
-            <option value={4}>Terminal Green</option>
-            <option value={3}>Amber CRT</option>
-            <option value={1}>White on Black</option>
+            <option value={1}>Matrix</option>
+            <option value={2}>Amber CRT</option>
+            <option value={3}>Monochrome</option>
           </select>
         </div>
 
@@ -140,7 +149,7 @@ export function SettingsDrawer({ engine, isOpen, onClose }: SettingsDrawerProps)
             <label style={{ fontSize: 12, fontWeight: 600, color: '#94a3b8', textTransform: 'uppercase' }}>Glyph Density</label>
             <span style={{ fontSize: 12, color: '#60a5fa' }}>{density}px</span>
           </div>
-          <input type="range" min="3" max="32" step="1" value={density} onChange={e => {
+          <input type="range" min="1" max="32" step="1" value={density} onChange={e => {
             const v = parseInt(e.target.value, 10);
             setDensity(v); 
             setUserSetDensity(true);

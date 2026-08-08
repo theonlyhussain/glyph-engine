@@ -6,6 +6,8 @@ import { GlyphAtlas } from './GlyphAtlas';
 import { GefFormat } from './GefFormat';
 import type { GefManifest } from './GefFormat';
 import { WavEncoder } from './WavEncoder';
+import { AutoCalibrator } from './AutoCalibrator';
+import type { CalibrationResult } from './AutoCalibrator';
 
 export class GlyphEngine {
   private canvas: HTMLCanvasElement;
@@ -23,6 +25,7 @@ export class GlyphEngine {
   private gefAudioElement: HTMLAudioElement | null = null;
   
   public exportProgress: number = 0;
+  public lastCalibration: CalibrationResult | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -53,6 +56,16 @@ export class GlyphEngine {
     this.gefManifest = null;
     this.cleanupGefAudio();
     await this.source.load(file);
+    
+    // Auto-calibrate: analyze the video and apply optimal settings
+    try {
+      const cal = await AutoCalibrator.calibrate(this.source.element);
+      this.lastCalibration = cal;
+      this.updateSettings(cal);
+    } catch (err) {
+      console.warn('Auto-calibration failed, using defaults:', err);
+    }
+    
     if (!this._isRendering) {
       this.play();
     }
