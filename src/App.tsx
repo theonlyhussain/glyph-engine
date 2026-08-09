@@ -27,6 +27,35 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!engine) return;
+
+    const searchParams = new URLSearchParams(window.location.search);
+    const srcUrl = searchParams.get('src');
+
+    if (srcUrl) {
+      (async () => {
+        try {
+          const res = await fetch(srcUrl);
+          if (!res.ok) {
+            throw new Error(`Failed to fetch remote pxl: HTTP ${res.status}`);
+          }
+          const blob = await res.blob();
+          const urlPath = srcUrl.split('?')[0];
+          const filename = urlPath.split('/').pop() || 'remote.pxl';
+          const file = new File([blob], filename.endsWith('.pxl') ? filename : `${filename}.pxl`, {
+            type: blob.type || 'application/octet-stream'
+          });
+          await engine.loadPxl(file);
+          setHasVideo(true);
+        } catch (err: any) {
+          console.error('Failed to load PXL from URL parameter:', err);
+          setError('Failed to load remote artwork: ' + err.message);
+        }
+      })();
+    }
+  }, [engine]);
+
+  useEffect(() => {
     let animationFrameId: number;
     
     const updateCanvasSize = () => {

@@ -56,29 +56,44 @@ export class AutoCalibrator {
     const avgSat = allStats.reduce((s, f) => s + f.meanSaturation, 0) / sampleCount;
     const avgDetail = allStats.reduce((s, f) => s + f.detailScore, 0) / sampleCount;
     
-    // === Derive Optimal Settings ===
-    
+    return this.calculateSettings(avgLum, avgStd, avgSat, avgDetail);
+  }
+
+  /**
+   * Derive optimal calibration settings from aggregated frame statistics.
+   */
+  public static calculateSettings(
+    avgLum: number,
+    avgStd: number,
+    avgSat: number,
+    avgDetail: number
+  ): CalibrationResult {
     // BRIGHTNESS: Target a mean luminance of ~0.45 (slightly below midpoint for richness)
-    // If the video is dark (avgLum = 0.2), we need to boost: 0.45 / 0.2 = 2.25
-    // If the video is bright (avgLum = 0.7), we need to dim: 0.45 / 0.7 = 0.64
+    // Dark videos (avgLum < 0.45) are boosted up to targetLum.
+    // Bright videos (avgLum >= 0.45) maintain or enhance bright aesthetic (brightness >= 1.0).
     const targetLum = 0.45;
-    let brightness = targetLum / Math.max(avgLum, 0.01);
-    brightness = Math.max(0.4, Math.min(2.5, brightness)); // Clamp to sane range
-    
+    let brightness: number;
+    if (avgLum < targetLum) {
+      brightness = targetLum / Math.max(avgLum, 0.01);
+    } else {
+      brightness = 1.0 + (avgLum - targetLum) * 0.5;
+    }
+    brightness = Math.max(0.5, Math.min(2.5, brightness));
+
     // CONTRAST: Target a luminance std deviation of ~0.22 (well-spread histogram)
     // If the video is flat (avgStd = 0.10), boost: 0.22 / 0.10 = 2.2
     // If the video is already punchy (avgStd = 0.30), pull back: 0.22 / 0.30 = 0.73
     const targetStd = 0.22;
     let contrast = targetStd / Math.max(avgStd, 0.01);
     contrast = Math.max(0.5, Math.min(2.5, contrast));
-    
+
     // SATURATION: Target ~0.40 average saturation
     // ASCII art benefits from slightly boosted saturation since the characters
     // eat into the color fidelity
     const targetSat = 0.40;
     let saturation = targetSat / Math.max(avgSat, 0.01);
     saturation = Math.max(0.5, Math.min(2.5, saturation));
-    
+
     // DENSITY: Based on detail score (edge frequency)
     // High detail (lots of edges/textures) → smaller cells (lower density number)
     // Low detail (smooth gradients, faces) → can use slightly larger cells
@@ -91,7 +106,7 @@ export class AutoCalibrator {
     } else {
       density = 4; // Smooth/simple — can afford bigger glyphs
     }
-    
+
     return {
       brightness: Math.round(brightness * 100) / 100,
       contrast: Math.round(contrast * 100) / 100,

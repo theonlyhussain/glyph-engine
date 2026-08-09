@@ -20,8 +20,8 @@ struct Uniforms {
   brightness: f32,
   contrast: f32,
   saturation: f32,
-  padding1: f32,
-  padding2: f32,
+  dilation: f32,
+  ditherStrength: f32,
 }
 @group(0) @binding(3) var<uniform> uniforms: Uniforms;
 

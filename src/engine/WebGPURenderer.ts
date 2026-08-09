@@ -27,7 +27,9 @@ export class WebGPURenderer implements Renderer {
     brightness: 1.0,
     contrast: 1.0,
     saturation: 1.0,
-    quality: 1
+    quality: 1,
+    dilation: 0.15,
+    ditherStrength: 0.08,
   };
   public getSettings(): RenderSettings { return this.settings; }
   
@@ -188,8 +190,8 @@ export class WebGPURenderer implements Renderer {
       v.setFloat32(44, this.settings.brightness, true);
       v.setFloat32(48, this.settings.contrast, true);
       v.setFloat32(52, this.settings.saturation, true);
-      v.setFloat32(56, 0, true);
-      v.setFloat32(60, 0, true);
+      v.setFloat32(56, this.settings.dilation ?? 0.15, true);
+      v.setFloat32(60, this.settings.ditherStrength ?? 0.08, true);
       this.device.queue.writeBuffer(this.uniformsBuffer!, 0, this.uniformData);
 
       let externalTexture: GPUExternalTexture | null = null;

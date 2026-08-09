@@ -112,9 +112,9 @@ export class WebGPURenderer extends Renderer {
       mipmapFilter: 'linear',
     });
     
-    // Uniform buffer (sourceSize, gridSize, cellSize, atlasGrid, debugView) - 12 floats = 48 bytes
+    // Uniform buffer - 16 floats = 64 bytes
     this.uniformsBuffer = this.device.createBuffer({
-      size: 48,
+      size: 64,
       usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
     });
   }

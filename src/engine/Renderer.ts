@@ -9,6 +9,8 @@ export interface RenderSettings {
   contrast: number; // default: 1.0
   saturation: number; // default: 1.0
   quality: number; // 0: Performance (1 tap), 1: Balanced (4 tap), 2: Cinema (9 tap)
+  dilation?: number; // default: 0.15 (SDF distance threshold shift tau = 0.5 - dilation)
+  ditherStrength?: number; // default: 0.08 (4x4 Bayer Dithering matrix strength)
 }
 
 export interface Renderer {

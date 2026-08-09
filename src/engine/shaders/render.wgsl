@@ -11,8 +11,8 @@ struct Uniforms {
   brightness: f32,
   contrast: f32,
   saturation: f32,
-  padding1: f32,
-  padding2: f32,
+  dilation: f32,
+  ditherStrength: f32,
 }
 @group(0) @binding(0) var<uniform> uniforms: Uniforms;
 
@@ -48,8 +48,15 @@ fn vs_main(
   let cellW = 2.0 / uniforms.gridSize.x;
   let cellH = 2.0 / uniforms.gridSize.y;
   
-  let x = -1.0 + f32(gx) * cellW + q.x * cellW;
-  let y = 1.0 - f32(gy) * cellH - q.y * cellH;
+  // Expand the quad size by 40% so characters physically overlap their neighbors,
+  // filling in the black empty spaces without background color bleeding.
+  let overlap = 1.4;
+  
+  let cx = -1.0 + f32(gx) * cellW + cellW * 0.5;
+  let cy =  1.0 - f32(gy) * cellH - cellH * 0.5;
+  
+  let x = cx + (q.x - 0.5) * (cellW * overlap);
+  let y = cy - (q.y - 0.5) * (cellH * overlap);
   
   let data = cellData[ii];
   let charIdx = u32(data.state.x);
@@ -81,10 +88,42 @@ fn applyColorCorrection(color: vec3<f32>) -> vec3<f32> {
   return clamp(c, vec3<f32>(0.0), vec3<f32>(1.0));
 }
 
+// 4x4 Bayer Dithering Matrix for smooth inter-character pixel blending
+fn bayer4x4(pos: vec2<f32>) -> f32 {
+  let x = u32(pos.x) % 4u;
+  let y = u32(pos.y) % 4u;
+  let index = y * 4u + x;
+  var dither = array<f32, 16>(
+     0.0 / 16.0,  8.0 / 16.0,  2.0 / 16.0, 10.0 / 16.0,
+    12.0 / 16.0,  4.0 / 16.0, 14.0 / 16.0,  6.0 / 16.0,
+     3.0 / 16.0, 11.0 / 16.0,  1.0 / 16.0,  9.0 / 16.0,
+    15.0 / 16.0,  7.0 / 16.0, 13.0 / 16.0,  5.0 / 16.0
+  );
+  return dither[index];
+}
+
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
   let glyph = textureSample(atlasTexture, atlasSampler, in.uv);
-  let alpha = glyph.r;
+  let sdfVal = glyph.r;
+  
+  // Signed Distance Field (SDF) distance threshold shift: tau = 0.5 - dilation
+  let dilation = select(0.15, uniforms.dilation, uniforms.dilation > 0.0);
+  let baseThreshold = 0.5 - dilation;
+  
+  // Apply 4x4 Bayer Dithering matrix offset
+  let ditherStrength = select(0.08, uniforms.ditherStrength, uniforms.ditherStrength > 0.0);
+  let dither = (bayer4x4(in.position.xy) - 0.5) * ditherStrength;
+  let tau = baseThreshold + dither;
+  
+  // Calculate character glyph stroke alpha with smooth transition edge
+  let edgeSmoothing = 0.08;
+  let alpha = smoothstep(tau - edgeSmoothing, tau + edgeSmoothing, sdfVal);
+  
+  // Non-inked fragments are completely transparent (alpha = 0.0, no solid background quads)
+  if (alpha <= 0.001) {
+    discard;
+  }
   
   var finalColor = in.color;
   
