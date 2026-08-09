@@ -12,7 +12,7 @@ export function EmbedModal({ isOpen, onClose }: EmbedModalProps) {
 
   const embedCode = `<script type="module" src="https://glyph-engine.vercel.app/embed.js"></script>
 <glyph-player 
-  src="./project.gef" 
+  src="./project.pxl" 
   style="width: 100%; height: 100%; display: block;"
 ></glyph-player>`;
 
@@ -45,7 +45,7 @@ export function EmbedModal({ isOpen, onClose }: EmbedModalProps) {
 
         <p style={{ margin: '0 0 16px 0', color: '#cbd5e1', fontSize: 14, lineHeight: 1.5 }}>
           Copy this code and paste it into your website's HTML. 
-          Make sure to replace the <strong>src</strong> URL with the link to your actual hosted `.gef` file!
+          Make sure to replace the <strong>src</strong> URL with the link to your actual hosted `.pxl` file!
         </p>
 
         <div style={{ position: 'relative', marginBottom: 24 }}>

@@ -33,8 +33,8 @@ export class WebGPURenderer implements Renderer {
   
   private gridSize = { w: 0, h: 0 };
   public instanceCount = 0;
-  public isGefMode = false;
-  public gefDimensions = { width: 0, height: 0 };
+  public isPxlMode = false;
+  public pxlDimensions = { width: 0, height: 0 };
 
   public async init(canvas: HTMLCanvasElement): Promise<void> {
     if (!navigator.gpu) throw new Error('WebGPU not supported');
@@ -128,9 +128,9 @@ export class WebGPURenderer implements Renderer {
   public render(): void {
     if (!this.device || !this.context || !this.source || !this.atlasTexture) return;
     
-    const w = this.isGefMode ? this.gefDimensions.width : this.source.width;
-    const h = this.isGefMode ? this.gefDimensions.height : this.source.height;
-    const ready = this.isGefMode ? true : this.source.isReady;
+    const w = this.isPxlMode ? this.pxlDimensions.width : this.source.width;
+    const h = this.isPxlMode ? this.pxlDimensions.height : this.source.height;
+    const ready = this.isPxlMode ? true : this.source.isReady;
     
     if (!ready || w === 0) return;
 
@@ -193,7 +193,7 @@ export class WebGPURenderer implements Renderer {
       this.device.queue.writeBuffer(this.uniformsBuffer!, 0, this.uniformData);
 
       let externalTexture: GPUExternalTexture | null = null;
-      if (!this.isGefMode) {
+      if (!this.isPxlMode) {
         try {
           externalTexture = this.device.importExternalTexture({ source: this.source.element });
         } catch (e) {
@@ -204,7 +204,7 @@ export class WebGPURenderer implements Renderer {
       const commandEncoder = this.device.createCommandEncoder();
 
       // Compute pass (analyze video frame into cell data)
-      if (!this.isGefMode && externalTexture) {
+      if (!this.isPxlMode && externalTexture) {
         const analyzeBindGroup = this.device.createBindGroup({
           layout: this.analyzePipeline!.getBindGroupLayout(0),
           entries: [

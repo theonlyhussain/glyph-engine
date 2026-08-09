@@ -39,8 +39,8 @@ export default function App() {
       let sourceH = 0;
       
       if (engine) {
-        if ((engine.getRenderer() as any).isGefMode) {
-          const dim = (engine.getRenderer() as any).gefDimensions;
+        if ((engine.getRenderer() as any).isPxlMode) {
+          const dim = (engine.getRenderer() as any).pxlDimensions;
           sourceW = dim?.width || 0;
           sourceH = dim?.height || 0;
         } else if (engine.videoElement && engine.videoElement.videoWidth > 0) {
@@ -81,8 +81,8 @@ export default function App() {
   const handleVideoSelected = async (file: File) => {
     if (!engine) return;
     try {
-      if (file.name.endsWith('.gef')) {
-        await engine.loadGef(file);
+      if (file.name.endsWith('.pxl')) {
+        await engine.loadPxl(file);
       } else {
         await engine.loadVideo(file);
       }

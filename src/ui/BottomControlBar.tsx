@@ -72,14 +72,14 @@ export function BottomControlBar({ engine, onOpenSettings, isVisible }: BottomCo
     if (isExporting) return;
     setIsExporting(true);
     try {
-      const blob = await engine.exportGef();
+      const blob = await engine.exportPxl();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
       
-      // Attempt to get filename from source, defaulting to 'project.gef'
+      // Attempt to get filename from source, defaulting to 'project.pxl'
       const basename = (engine as any).source?.filename || 'project';
-      a.download = `${basename}.gef`;
+      a.download = `${basename}.pxl`;
       
       a.click();
       URL.revokeObjectURL(url);
@@ -168,7 +168,7 @@ export function BottomControlBar({ engine, onOpenSettings, isVisible }: BottomCo
           <button onClick={() => setIsEmbedModalOpen(true)} style={btnStyle} title="Get Embed Code">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/></svg>
           </button>
-          <button onClick={handleExport} style={{ ...btnStyle, opacity: isExporting ? 0.7 : 1, fontSize: 12, fontWeight: 'bold' }} title="Export .gef">
+          <button onClick={handleExport} style={{ ...btnStyle, opacity: isExporting ? 0.7 : 1, fontSize: 12, fontWeight: 'bold' }} title="Export .pxl">
             {isExporting ? (
               <span>EXPORTING...</span>
             ) : (

@@ -1,7 +1,7 @@
 import JSZip from 'jszip';
 import type { RenderSettings } from './Renderer';
 
-export interface GefManifest {
+export interface PxlManifest {
   formatVersion: number;
   engineVersion: string;
   fps: number;
@@ -11,14 +11,14 @@ export interface GefManifest {
   createdAt: string;
 }
 
-export interface GefParsed {
-  manifest: GefManifest;
+export interface PxlParsed {
+  manifest: PxlManifest;
   frames: Uint8Array[];
   thumbnail: Blob | null;
   audio: Blob | null;
 }
 
-export class GefFormat {
+export class PxlFormat {
   /**
    * Packs a 32-byte per-cell Float32Array (from WebGPU) into a 5-byte per-cell Uint8Array.
    * Input layout: [r, g, b, a, charIdx, lum, variance, padding] (8 floats = 32 bytes)
@@ -79,7 +79,7 @@ export class GefFormat {
     return cellData;
   }
 
-  public static async createGef(manifest: GefManifest, frames: Uint8Array[], thumbnail: Blob | null, audio: Blob | null): Promise<Blob> {
+  public static async createPxl(manifest: PxlManifest, frames: Uint8Array[], thumbnail: Blob | null, audio: Blob | null): Promise<Blob> {
     const zip = new JSZip();
     
     zip.file("manifest.json", JSON.stringify(manifest, null, 2));
@@ -108,21 +108,21 @@ export class GefFormat {
     });
   }
 
-  public static async parseGef(blob: Blob): Promise<GefParsed> {
+  public static async parsePxl(blob: Blob): Promise<PxlParsed> {
     const zip = await JSZip.loadAsync(blob);
     
     const manifestFile = zip.file('manifest.json');
-    if (!manifestFile) throw new Error('Invalid .gef: missing manifest.json');
+    if (!manifestFile) throw new Error('Invalid .pxl: missing manifest.json');
     
     const manifestStr = await manifestFile.async('string');
-    const manifest = JSON.parse(manifestStr) as GefManifest;
+    const manifest = JSON.parse(manifestStr) as PxlManifest;
     
     if (manifest.formatVersion !== 1) {
-      throw new Error(`Unsupported .gef format version: ${manifest.formatVersion}`);
+      throw new Error(`Unsupported .pxl format version: ${manifest.formatVersion}`);
     }
     
     const framesFile = zip.file('frames.bin');
-    if (!framesFile) throw new Error('Invalid .gef: missing frames.bin');
+    if (!framesFile) throw new Error('Invalid .pxl: missing frames.bin');
     
     const combinedFrames = await framesFile.async('uint8array');
     const frames: Uint8Array[] = [];

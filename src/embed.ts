@@ -1,5 +1,5 @@
 import { GlyphEngine } from './engine/GlyphEngine';
-import { GefFormat } from './engine/GefFormat';
+import { PxlFormat } from './engine/PxlFormat';
 
 class GlyphPlayerElement extends HTMLElement {
   private engine: GlyphEngine | null = null;
@@ -74,9 +74,9 @@ class GlyphPlayerElement extends HTMLElement {
 
     try {
       const response = await fetch(src);
-      if (!response.ok) throw new Error('Failed to fetch GEF file');
+      if (!response.ok) throw new Error('Failed to fetch PXL file');
       const blob = await response.blob();
-      const file = new File([blob], 'project.gef', { type: blob.type });
+      const file = new File([blob], 'project.pxl', { type: blob.type });
 
       // Check WebGPU support
       if (navigator.gpu) {
@@ -119,14 +119,14 @@ class GlyphPlayerElement extends HTMLElement {
     // Init Engine
     this.engine = new GlyphEngine(this.canvas);
     await this.engine.init();
-    await this.engine.loadGef(file);
+    await this.engine.loadPxl(file);
   }
 
   private async initFallback(file: File) {
     this.container.innerHTML = '';
     
-    // Parse GEF specifically to extract just the thumbnail
-    const parsed = await GefFormat.parseGef(file);
+    // Parse PXL specifically to extract just the thumbnail
+    const parsed = await PxlFormat.parsePxl(file);
     if (parsed.thumbnail) {
       const img = document.createElement('img');
       img.src = URL.createObjectURL(parsed.thumbnail);
