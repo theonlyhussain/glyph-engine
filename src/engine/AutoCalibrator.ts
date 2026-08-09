@@ -172,7 +172,6 @@ export class AutoCalibrator {
     let edgeCount = 0;
     for (let y = 1; y < sampleH - 1; y += 2) {
       for (let x = 1; x < sampleW - 1; x += 2) {
-        const c = lumValues[y * sampleW + x];
         const l = lumValues[y * sampleW + (x - 1)];
         const r = lumValues[y * sampleW + (x + 1)];
         const t = lumValues[(y - 1) * sampleW + x];
